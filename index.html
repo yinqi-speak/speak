@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1b2a41">
+<title>口语陪练</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="口语陪练">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;height:100%}
+  body{
+    background:#f4f1ea; color:#1b2a41;
+    font-family:"PingFang SC","Noto Sans SC",system-ui,sans-serif;
+    display:flex; flex-direction:column; height:100%; overflow:hidden;
+  }
+  #err{display:none; background:#c0392b; color:#fff; font-size:12px; padding:6px 10px; line-height:1.4}
+  header{
+    flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px; background:#1b2a41; color:#fff;
+    padding-top:calc(12px + env(safe-area-inset-top));
+  }
+  header h1{font-size:18px; margin:0; font-weight:600; letter-spacing:1px}
+  #openSet{
+    border:none; background:rgba(255,255,255,.16); color:#fff; font-size:20px;
+    width:42px; height:42px; border-radius:10px; cursor:pointer; line-height:1;
+  }
+  #chat{flex:1 1 auto; overflow-y:auto; padding:14px 12px; -webkit-overflow-scrolling:touch}
+  .row{display:flex; margin-bottom:14px}
+  .row.you{justify-content:flex-end}
+  .bubble{
+    max-width:82%; padding:11px 13px; border-radius:14px; line-height:1.5;
+    word-break:break-word; white-space:pre-wrap; font-size:16px;
+  }
+  .row.you .bubble{background:#dcebf3; border-bottom-right-radius:4px}
+  .row.ai .bubble{background:#fff; border:1px solid #e4e0d7; border-bottom-left-radius:4px}
+  .en{font-size:17px; margin-bottom:6px}
+  .zh{font-size:14px; color:#7c8698; border-top:1px dashed #e4e0d7; padding-top:6px; margin-top:2px}
+  .actions{margin-top:8px; display:flex; gap:8px}
+  .actions button{
+    border:1px solid #e4e0d7; background:#fff; color:#33425a;
+    border-radius:999px; padding:8px 14px; font-size:14px; cursor:pointer;
+  }
+  .actions button.on{background:#2f6b8f; color:#fff; border-color:#2f6b8f}
+  .typing{color:#7c8698; font-style:italic}
+  .hint{flex:0 0 auto; text-align:center; font-size:12px; color:#7c8698; padding:2px 0 6px; background:#fff}
+  #composer{
+    flex:0 0 auto; display:flex; gap:8px; padding:10px 12px;
+    background:#fff; border-top:1px solid #e4e0d7;
+    padding-bottom:calc(10px + env(safe-area-inset-bottom));
+  }
+  #inp{
+    flex:1 1 auto; border:1px solid #e4e0d7; border-radius:20px;
+    padding:11px 15px; font-size:16px; resize:none; height:46px; font-family:inherit;
+    outline:none; background:#fbfaf7;
+  }
+  #send{
+    flex:0 0 auto; width:46px; height:46px; border:none; border-radius:50%;
+    background:#2f6b8f; color:#fff; font-size:20px; cursor:pointer;
+  }
+  #mask{position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; z-index:10}
+  #settings{
+    position:fixed; left:0; right:0; bottom:0; background:#fff; z-index:11;
+    border-radius:18px 18px 0 0; padding:18px 16px;
+    padding-bottom:calc(18px + env(safe-area-inset-bottom));
+    display:none; max-height:82%; overflow-y:auto;
+  }
+  #settings h2{margin:0 0 14px; font-size:17px}
+  .field{margin-bottom:12px}
+  .field label{display:block; font-size:13px; color:#7c8698; margin-bottom:5px}
+  .field input, .field select{
+    width:100%; border:1px solid #e4e0d7; border-radius:10px;
+    padding:10px 12px; font-size:15px; font-family:inherit; background:#fbfaf7; outline:none;
+  }
+  .note{font-size:12px; color:#8a7a6a; background:#fbf6ee; border:1px solid #efe3d2; border-radius:8px; padding:8px 10px; margin-bottom:12px; line-height:1.5}
+  .row2{display:flex; gap:10px; align-items:center; margin-bottom:12px}
+  .row2 span{font-size:14px}
+  .row2 input[type=checkbox]{width:22px; height:22px}
+  #closeSet{width:100%; border:none; background:#1b2a41; color:#fff; border-radius:12px; padding:14px; font-size:16px; cursor:pointer; margin-top:6px}
+  #testVoice{
+    width:100%; border:1px dashed #c9c3b6; background:#fff; color:#33425a;
+    border-radius:12px; padding:11px; font-size:15px; cursor:pointer; margin-bottom:10px;
+  }
+</style>
+</head>
+<body>
+
+<div id="err"></div>
+
+<header>
+  <h1>口语陪练</h1>
+  <button id="openSet" aria-label="设置">⚙</button>
+</header>
+
+<div id="chat"></div>
+
+<div class="hint">长按输入框 → 键盘上的麦克风 🎤 → 说话转文字</div>
+
+<div id="composer">
+  <textarea id="inp" rows="1" placeholder="打字，或用键盘语音说话…"></textarea>
+  <button id="send" aria-label="发送">➤</button>
+</div>
+
+<div id="mask"></div>
+<div id="settings">
+  <h2>设置</h2>
+  <div class="note">
+    需要 DeepSeek 的 API Key（platform.deepseek.com 生成，需有余额）。<br>
+    朗读用有道真人发音，需要联网。
+  </div>
+  <div class="field">
+    <label>API 地址</label>
+    <input id="base" placeholder="https://api.deepseek.com">
+  </div>
+  <div class="field">
+    <label>模型名</label>
+    <input id="model" placeholder="deepseek-chat">
+  </div>
+  <div class="field">
+    <label>API Key</label>
+    <input id="key" placeholder="sk-…">
+  </div>
+  <div class="note" id="voiceNote" style="margin-top:2px">
+    想听播音员级发音？填下面两项（免费注册 azure.microsoft.com，选 East Asia + Free F0）。
+  </div>
+  <div class="field">
+    <label>Azure 语音 Key（可不填，不填用免费发音）</label>
+    <input id="azureKey" placeholder="留空则用百度发音" autocomplete="off">
+  </div>
+  <div class="field">
+    <label>Azure 区域</label>
+    <input id="azureRegion" placeholder="eastasia">
+  </div>
+  <div class="field">
+    <label>发音</label>
+    <select id="accent">
+      <option value="2">美式发音（推荐）</option>
+      <option value="1">英式发音</option>
+    </select>
+  </div>
+  <div class="row2">
+    <span>自动朗读英文</span>
+    <input type="checkbox" id="autospeak" checked>
+  </div>
+  <div class="row2">
+    <span>慢速播放</span>
+    <input type="checkbox" id="slow">
+  </div>
+  <button id="testVoice">🔊 测试朗读</button>
+  <button id="closeSet">保存</button>
+</div>
+
+<script>
+(function(){
+var DEFAULT_BASE = 'https://api.deepseek.com';
+var DEFAULT_MODEL = 'deepseek-chat';
+var YOUDAO = 'https://dict.youdao.com/dictvoice?type=';
+var AZURE_VOICE = 'en-US-AvaMultilingualNeural';
+
+var chat, inp, sendBtn, mask, settings, baseEl, modelEl, keyEl, accentEl, autoEl, slowEl, azKeyEl, azRegionEl;
+var cfg = {}, chatHist = [];
+var queue = [], curAudio = null, curBtn = null, seq = 0, player = null, failures = 0, playToken = 0;
+
+var SYSTEM = [
+  "你是我的英语口语陪练老师。我是一名中国小学老师，英语口语基础弱。",
+  "规则：",
+  "1. 我用中文或中英夹杂说话，你用简单、口语化的英文回复，句子尽量短。",
+  "2. 输出格式必须严格：先写完整的英文回复（可以有多句，最多在最后问一个问题）；",
+  "   然后另起一行，以【译】开头，写这段英文的中文翻译。",
+  "3. 【译】之后不许再写任何英文，也不许继续提问。",
+  "4. 不要解释规则、不要加任何额外说明。",
+  "示例：",
+  "Good job! What do you teach?",
+  "【译】做得好！你教什么科目？"
+].join('\n');
+
+function showErr(msg){
+  var el = document.getElementById('err');
+  if(!el) return;
+  el.style.display = 'block';
+  el.textContent = '页面错误：' + msg;
+}
+window.onerror = function(m){ showErr(m); };
+
+function safeGet(k){ try{ return window.localStorage.getItem(k); }catch(e){ return null; } }
+function safeSet(k, v){ try{ window.localStorage.setItem(k, v); }catch(e){} }
+function loadCfg(){ try{ var s = safeGet('speak_cfg'); if(s) return JSON.parse(s); }catch(e){} return {}; }
+function saveCfg(){ safeSet('speak_cfg', JSON.stringify(cfg || {})); }
+function loadHist(){
+  try{
+    var s = safeGet('speak_hist');
+    if(!s) return [];
+    var a = JSON.parse(s);
+    if(Object.prototype.toString.call(a) !== '[object Array]') return [];
+    var out = [];
+    for(var i=0;i<a.length;i++){
+      var m = a[i];
+      if(m && typeof m === 'object' && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string'){
+        out.push(m);
+      }
+    }
+    return out;
+  }catch(e){ return []; }
+}
+function saveHist(){
+  if(chatHist.length > 40) chatHist = chatHist.slice(-40);
+  safeSet('speak_hist', JSON.stringify(chatHist));
+}
+function $(id){ return document.getElementById(id); }
+
+function init(){
+  chat = $('chat'); inp = $('inp'); sendBtn = $('send');
+  mask = $('mask'); settings = $('settings');
+  baseEl = $('base'); modelEl = $('model'); keyEl = $('key');
+  accentEl = $('accent'); autoEl = $('autospeak'); slowEl = $('slow');
+  azKeyEl = $('azureKey'); azRegionEl = $('azureRegion');
+
+  cfg = loadCfg();
+  chatHist = loadHist();
+
+  $('openSet').onclick = openSettings;
+  $('closeSet').onclick = closeSettings;
+  mask.onclick = closeSettings;
+  sendBtn.onclick = sendMsg;
+  inp.oninput = autoGrow;
+  inp.onkeydown = onKey;
+  $('testVoice').onclick = function(){ speak('Hello! Nice to meet you. Let us practice English together.', $('testVoice'), true); };
+
+  fillForm();
+  renderHistory();
+
+  // 软键盘弹出时把页面压到可视区高度，避免输入框被键盘盖住
+  try{
+    if(window.visualViewport){
+      var fit = function(){
+        document.body.style.height = window.visualViewport.height + 'px';
+        scrollBottom();
+      };
+      window.visualViewport.addEventListener('resize', fit);
+      window.visualViewport.addEventListener('scroll', fit);
+      fit();
+    }
+  }catch(e){}
+
+  if(!cfg.key) openSettings();
+  else setTimeout(scrollBottom, 60);
+}
+
+function onKey(e){
+  if(e.key !== 'Enter' || e.shiftKey) return;
+  if(e.isComposing || e.keyCode === 229) return;
+  e.preventDefault();
+  sendMsg();
+}
+
+function fillForm(){
+  baseEl.value = cfg.base || DEFAULT_BASE;
+  modelEl.value = cfg.model || DEFAULT_MODEL;
+  keyEl.value = cfg.key || '';
+  accentEl.value = String(cfg.accent || '2');
+  if(azKeyEl) azKeyEl.value = cfg.azureKey || '';
+  if(azRegionEl) azRegionEl.value = cfg.azureRegion || 'eastasia';
+  autoEl.checked = (cfg.auto !== false);
+  slowEl.checked = !!cfg.slow;
+}
+
+function openSettings(){ mask.style.display = 'block'; settings.style.display = 'block'; }
+function closeSettings(){
+  cfg.base = (baseEl.value || '').replace(/\s/g, '') || DEFAULT_BASE;
+  cfg.model = (modelEl.value || '').replace(/\s/g, '') || DEFAULT_MODEL;
+  cfg.key = (keyEl.value || '').replace(/\s/g, '');
+  cfg.accent = accentEl.value || '2';
+  if(azKeyEl) cfg.azureKey = (azKeyEl.value || '').replace(/\s/g,'');
+  if(azRegionEl) cfg.azureRegion = (azRegionEl.value || 'eastasia').replace(/\s/g,'').toLowerCase();
+  cfg.auto = autoEl.checked;
+  cfg.slow = slowEl.checked;
+  saveCfg();
+  mask.style.display = 'none';
+  settings.style.display = 'none';
+}
+
+// ============ 发音：真人语音（有道）逐句播放 ============
+function splitSentences(text){
+  var t = String(text || '').replace(/\s+/g, ' ').trim();
+  if(!t) return [];
+  var parts = t.match(/[^.!?;]+[.!?;]*/g) || [t];
+  var out = [];
+  for(var i=0;i<parts.length;i++){
+    var s = parts[i].replace(/^\s+|\s+$/g, '');
+    if(s) out.push(s);
+  }
+  // 太长的句子再切
+  var res = [];
+  for(var j=0;j<out.length;j++){
+    var s2 = out[j];
+    while(s2.length > 160){
+      var cut = s2.lastIndexOf(' ', 160);
+      if(cut < 40) cut = 160;
+      res.push(s2.slice(0, cut));
+      s2 = s2.slice(cut).replace(/^\s+/, '');
+    }
+    if(s2) res.push(s2);
+  }
+  return res;
+}
+
+// 两个发音源：百度稳定，有道作备选（有道会限流返回 500）
+// 发音源：优先 Azure 神经语音（播音员音质），没配 Key 时回退百度/有道
+function ttsUrls(sentence){
+  var t = String(sentence || '').replace(/^\s+|\s+$/g, '');
+  if(!t) return [];
+  var enc = encodeURIComponent(t);
+  var list = [];
+  if(cfg.azureKey && cfg.azureRegion){
+    // Azure 需要 POST 生成，走特殊标记，由 fetchAzureTTS 处理
+    list.push('azure://' + encodeURIComponent(AZURE_VOICE) + '|' + enc);
+  }
+  list.push('https://fanyi.baidu.com/gettts?lan=en&text=' + enc + '&spd=3&source=web');
+  list.push(YOUDAO + (cfg.accent || '2') + '&audio=' + enc);
+  return list;
+}
+
+// Azure 语音合成：返回 blob URL
+function fetchAzureTTS(sentence, voice){
+  var region = (cfg.azureRegion || 'eastasia').toLowerCase().replace(/\s/g, '');
+  var key = (cfg.azureKey || '').replace(/\s/g, '');
+  var url = 'https://' + region + '.tts.speech.microsoft.com/cognitiveservices/v1';
+  var safe = String(sentence)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  var ssml = '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">'
+    + '<voice name="' + (voice || AZURE_VOICE) + '">' + safe + '</voice></speak>';
+
+  return fetch(url, {
+    method: 'POST',
+    headers: {
+      'Ocp-Apim-Subscription-Key': key,
+      'Content-Type': 'application/ssml+xml',
+      'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3'
+    },
+    body: ssml
+  }).then(function(r){
+    if(!r.ok){
+      throw new Error('Azure ' + r.status);
+    }
+    return r.blob();
+  }).then(function(blob){
+    if(!blob || blob.size < 500) throw new Error('Azure 空音频');
+    return URL.createObjectURL(blob);
+  });
+}
+
+function stopSpeak(){
+  seq++;
+  playToken++;
+  queue = [];
+  failures = 0;
+  if(curAudio){
+    try{
+      curAudio.onended = null;
+      curAudio.onerror = null;
+      curAudio.pause();
+    }catch(e){}
+    curAudio = null;
+  }
+  setBtnIdle(curBtn);
+  curBtn = null;
+}
+
+function setBtnIdle(btn){
+  if(!btn) return;
+  if(btn === $('testVoice')){ btn.textContent = '🔊 测试朗读'; return; }
+  btn.textContent = '🔊 朗读';
+  btn.className = '';
+}
+
+function speak(text, btn, isTest){
+  stopSpeak();
+  var parts = chunkText(text);
+  if(!parts.length) return;
+  var mySeq = ++seq;
+  failures = 0;
+  queue = parts.slice();
+  curBtn = btn || null;
+  speakNext(mySeq, isTest, 0, '');
+}
+
+// 整段合并成 <=180 字符的块：手机上请求次数越少越不容易断
+function chunkText(text){
+  var t = String(text || '').replace(/\s+/g, ' ').trim();
+  if(!t) return [];
+  var sents = t.match(/[^.!?;]+[.!?;]*/g) || [t];
+  var out = [], buf = '';
+  for(var i=0;i<sents.length;i++){
+    var s = sents[i].replace(/^\s+|\s+$/g, '');
+    if(!s) continue;
+    if((buf + ' ' + s).trim().length <= 180){
+      buf = (buf + ' ' + s).trim();
+    }else{
+      if(buf) out.push(buf);
+      buf = s;
+    }
+    while(buf.length > 180){
+      var cut = buf.lastIndexOf(' ', 180);
+      if(cut < 60) cut = 180;
+      out.push(buf.slice(0, cut).trim());
+      buf = buf.slice(cut).trim();
+    }
+  }
+  if(buf) out.push(buf);
+  return out;
+}
+
+function getPlayer(){
+  if(!player){
+    player = new Audio();
+    player.preload = 'auto';
+  }
+  return player;
+}
+
+// curSentence：当前正在播的这一句。换源时复用它，不再从队列取
+function speakNext(mySeq, isTest, srcIdx, curSentence){
+  if(mySeq !== seq) return;
+
+  var s;
+  if(typeof curSentence === 'string' && curSentence){
+    s = curSentence;            // 换源：还是同一句
+  }else{
+    if(!queue.length){ finishSpeak(); return; }
+    s = queue.shift();          // 新的一句
+  }
+
+  var urls = ttsUrls(s);
+  var idx = srcIdx || 0;
+
+  if(idx >= urls.length){
+    // 所有音频源都失败 → 系统语音兜底
+    fallbackSpeak(
+      s,
+      function(){ if(mySeq === seq) speakNext(mySeq, isTest, 0, ''); },
+      function(){ failures++; if(mySeq === seq) speakNext(mySeq, isTest, 0, ''); }
+    );
+    return;
+  }
+
+  var a;
+  try{
+    a = new Audio();
+    a.preload = 'auto';
+  }catch(e){
+    failures++;
+    if(curBtn){ curBtn.textContent = '❌ 设备不支持播放'; curBtn.className = ''; }
+    curBtn = null;
+    return;
+  }
+  curAudio = a;
+
+  if(curBtn){
+    curBtn.textContent = '⏸ 停止';
+    curBtn.className = 'on';
+  }
+
+  // 每次请求独立计号：只有本次守卫/事件还能生效，旧回调一律作废
+  var token = ++playToken;
+  var guard = null;
+  var closed = false;               // 本次请求已结束（播完/失败/放弃）
+  var switchTimer = null;
+  var loadGuard = null;
+  var azBlobUrl = null;
+  function alive(){
+    if(closed) return false;
+    if(mySeq !== seq) return false;
+    if(token !== playToken) return false;
+    return true;
+  }
+  function stopGuard(){ if(guard){ clearTimeout(guard); guard = null; } }
+  function stopSwitchT(){ if(switchTimer){ clearTimeout(switchTimer); switchTimer = null; } }
+  function stopLoadG(){ if(loadGuard){ clearTimeout(loadGuard); loadGuard = null; } }
+  // 结束本请求：先置 closed，再推进，避免重复触发
+  function demote(){ closed = true; stopGuard(); stopSwitchT(); stopLoadG(); playToken++; }
+  // 这句播完了，进入下一段
+  function advanceToNext(){
+    if(closed) return;
+    demote();
+    speakNext(mySeq, isTest, 0, '');
+  }
+  // 这个源失败，换下一个源重试同一句
+  function nextSource(){
+    if(closed) return;
+    demote();
+    speakNext(mySeq, isTest, idx + 1, s);
+  }
+  // 彻底失败：交回用户
+  function giveUp(){
+    if(closed) return;
+    demote();
+    failures++;
+    if(curBtn){ curBtn.textContent = '🔊 重试朗读'; curBtn.className = ''; }
+    curBtn = null;
+    seq++;
+  }
+
+  a.onended = function(){ advanceToNext(); };
+  a.onerror = function(){ nextSource(); };
+
+  // 播放超时保护：真正开始播后，按字数估算一个宽松上限，超过才放弃
+  var words = s.split(/\s+/).length;
+  var est = Math.max(15000, words * 700 + 8000);
+  guard = setTimeout(function(){
+    if(!alive()) return;
+    var playing = false;
+    try{ playing = a.currentTime > 0 && !a.paused && !a.ended; }catch(e){}
+    if(playing){
+      // 还在播，再给 10 秒收尾
+      guard = setTimeout(function(){ if(alive()) giveUp(); }, 10000);
+      return;
+    }
+    // 完全没动：说明这个源废了，换下一个
+    nextSource();
+  }, est);
+
+  // 加载失败兜底：真实网络下 error 事件可能不触发，用 readyState 轮询判定
+  // 只有"确实一点都没加载到"才算失败，避免把慢速加载误判
+  var loadGuard = setTimeout(function checkLoaded(){
+    if(!alive()) return;
+    if(a.readyState < 2 && !a.duration && a.currentTime === 0){
+      // 还没任何元数据 → 换源
+      nextSource();
+    }
+  }, 6000);
+
+  // Azure 源需要先 POST 生成音频，再喂给播放器
+  if(urls[idx].indexOf('azure://') === 0){
+    var parts = urls[idx].slice(8).split('|');
+    var azVoice = decodeURIComponent(parts[0] || '');
+    var azText = decodeURIComponent(parts.slice(1).join('|') || '');
+    fetchAzureTTS(azText, azVoice).then(function(blobUrl){
+      if(!alive()){ try{ URL.revokeObjectURL(blobUrl); }catch(e){} return; }
+      azBlobUrl = blobUrl;
+      a.src = blobUrl;
+      a.playbackRate = (slowEl && slowEl.checked) ? 0.75 : 1;
+      var pp = a.play();
+      if(pp && pp.then){
+        pp.then(function(){}, function(err){
+          if(!alive()) return;
+          if(err && err.name === 'NotAllowedError'){
+            demote();
+            if(curBtn){ curBtn.textContent = '🔊 点我播放'; curBtn.className = ''; }
+            seq++;
+            return;
+          }
+          nextSource();
+        });
+      }
+    }).catch(function(){
+      // Azure 失败（Key 错/超额/网络）→ 静默回退到百度
+      if(closed){ return; }
+      // 直接跳到下一个源，不走 nextSource 的 closed 检查
+      stopGuard(); stopSwitchT(); stopLoadG();
+      closed = true;
+      speakNext(mySeq, isTest, 1, s);
+    });
+    return;
+  }
+
+  try{
+    a.src = urls[idx];
+    a.playbackRate = (slowEl && slowEl.checked) ? 0.75 : 1;
+    var p;
+    try{
+      p = a.play();
+    }catch(playErr){
+      // play 同步抛错：换一个事件循环再切源，避免递归
+      switchTimer = setTimeout(function(){ nextSource(); }, 0);
+      return;
+    }
+    if(p && p.then){
+      p.then(function(){}, function(err){
+        if(!alive()) return;
+        var n = err && err.name;
+
+        // 主动停止/被新播放打断：这不是失败，静默结束即可
+        if(n === 'AbortError'){
+          return;
+        }
+
+        if(n === 'NotAllowedError'){
+          // 自动播放被拦：交回用户点一下
+          demote();
+          if(curBtn){ curBtn.textContent = '🔊 点我播放'; curBtn.className = ''; }
+          seq++;
+          return;
+        }
+
+        // NotSupportedError 等：可能只是尚未加载完，给 2.5 秒确认
+        switchTimer = setTimeout(function(){
+          if(!alive()) return;
+          var ok = false, rs = 0;
+          try{ rs = a.readyState; ok = rs >= 1 || a.duration > 0; }catch(e){}
+          if(ok) return;      // 已经在加载或已播过，不换源
+          nextSource();
+        }, 2500);
+      });
+    }
+  }catch(e){
+    switchTimer = setTimeout(function(){ nextSource(); }, 0);
+  }
+}
+
+function finishSpeak(){
+  if(!curBtn) return;
+  if(failures > 0){
+    curBtn.textContent = '🔊 重试朗读';
+    curBtn.className = '';
+  }else{
+    setBtnIdle(curBtn);
+  }
+  curBtn = null;
+}
+
+// 系统语音兜底：3.5 秒内没真正开口就判定失败，绝不干等
+function fallbackSpeak(sentence, onDone, onFail){
+  try{
+    if(!window.speechSynthesis || !window.SpeechSynthesisUtterance){ if(onFail) onFail(); return; }
+    var u = new SpeechSynthesisUtterance(sentence);
+    u.lang = 'en-US';
+    u.rate = (slowEl && slowEl.checked) ? 0.75 : 1;
+    var vs = window.speechSynthesis.getVoices() || [];
+    for(var i=0;i<vs.length;i++){
+      if(vs[i].lang && vs[i].lang.toLowerCase().indexOf('en') === 0){ u.voice = vs[i]; u.lang = vs[i].lang; break; }
+    }
+    var started = false, closed = false;
+    var startTimer = setTimeout(function(){
+      if(started || closed) return;
+      closed = true;
+      try{ window.speechSynthesis.cancel(); }catch(e){}
+      if(onFail) onFail();
+    }, 3500);
+    u.onstart = function(){ started = true; clearTimeout(startTimer); };
+    u.onend = function(){ if(closed) return; closed = true; clearTimeout(startTimer); if(onDone) onDone(); };
+    u.onerror = function(){ if(closed) return; closed = true; clearTimeout(startTimer); if(onFail) onFail(); };
+    window.speechSynthesis.speak(u);
+  }catch(e){ if(onFail) onFail(); }
+}
+
+function unlockAudio(){
+  try{
+    var a = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
+    a.volume = 0.01;
+    var p = a.play();
+    if(p && p.catch) p.catch(function(){});
+  }catch(e){}
+}
+
+// ============ 界面 ============
+function addRow(role){
+  var row = document.createElement('div');
+  row.className = 'row ' + (role === 'you' ? 'you' : 'ai');
+  var b = document.createElement('div');
+  b.className = 'bubble';
+  row.appendChild(b);
+  chat.appendChild(row);
+  scrollBottom();
+  return b;
+}
+function scrollBottom(){
+  try{ chat.scrollTop = chat.scrollHeight; }catch(e){}
+}
+
+function renderAI(bubble, english, chinese){
+  bubble.innerHTML = '';
+  if(english){
+    var en = document.createElement('div'); en.className = 'en'; en.textContent = english;
+    bubble.appendChild(en);
+  }
+  if(chinese){
+    var zh = document.createElement('div'); zh.className = 'zh'; zh.textContent = chinese;
+    bubble.appendChild(zh);
+  }
+  if(english){
+    var a = document.createElement('div'); a.className = 'actions';
+    var sp = document.createElement('button'); sp.textContent = '🔊 朗读';
+    sp.onclick = function(){
+      if(curBtn === sp && curAudio){ stopSpeak(); return; }
+      speak(english, sp, false);
+    };
+    a.appendChild(sp);
+    bubble.appendChild(a);
+    bubble.__btn = sp;
+  }
+  scrollBottom();
+}
+
+function renderHistory(){
+  for(var i=0;i<chatHist.length;i++){
+    var m = chatHist[i];
+    if(m.role === 'user'){
+      var b = addRow('you'); b.textContent = m.content;
+    }else if(m.role === 'assistant'){
+      var ab = addRow('ai');
+      renderAI(ab, m.content, m.zh || '');
+    }
+  }
+}
+
+function autoGrow(){
+  if(!inp) return;
+  inp.style.height = '46px';
+  try{ inp.style.height = Math.min(inp.scrollHeight, 120) + 'px'; }catch(e){}
+}
+
+// ============ 发送 ============
+function sendMsg(){
+  var text = (inp.value || '').replace(/^\s+|\s+$/g, '');
+  if(!text) return;
+  if(!cfg.key){ openSettings(); return; }
+
+  unlockAudio();          // 借用户点击解锁播放权限
+  stopSpeak();
+
+  inp.value = ''; autoGrow();
+  var you = addRow('you'); you.textContent = text;
+
+  var bubble = addRow('ai');
+  bubble.textContent = '思考中…';
+
+  var msgs = [{role:'system', content:SYSTEM}];
+  var from = Math.max(0, chatHist.length - 20);
+  for(var i=from;i<chatHist.length;i++){
+    var h = chatHist[i];
+    var c = h.content;
+    // 把译文一起喂回去，模型才会照着同样的格式续写
+    if(h.role === 'assistant' && h.zh) c = c + '\n【译】' + h.zh;
+    msgs.push({role: h.role, content: c});
+  }
+  msgs.push({role:'user', content:text});
+  chatHist.push({role:'user', content:text});
+
+  callModel(msgs, function(full){
+    var parts = splitReply(full);
+    if(!parts.en && !parts.zh){
+      parts.en = '（没有收到内容，请再发一次）';
+    }
+    renderAI(bubble, parts.en, parts.zh);
+    chatHist.push({role:'assistant', content: parts.en, zh: parts.zh});
+    saveHist();
+    if(autoEl && autoEl.checked && parts.en){
+      speak(parts.en, bubble.__btn, false);
+    }
+  }, function(msg){
+    bubble.innerHTML = '';
+    var d = document.createElement('div');
+    d.className = 'zh';
+    d.textContent = '❌ ' + msg;
+    bubble.appendChild(d);
+    chatHist.pop();
+    saveHist();
+  });
+}
+
+function splitReply(full){
+  var s = String(full || '');
+  var idx = s.lastIndexOf('【译】');
+  if(idx < 0) idx = s.lastIndexOf('[译]');
+  if(idx < 0) return { en: s.trim(), zh: '' };
+
+  var en = s.slice(0, idx).trim();
+  var rest = s.slice(idx).replace(/^【译】|^\[译\]/, '').replace(/^[：:]\s*/, '');
+
+  var lines = rest.split(/\n/);
+  var zhLines = [], enTail = [];
+  for(var i=0;i<lines.length;i++){
+    var L = lines[i].replace(/^\s+|\s+$/g, '');
+    if(!L) continue;
+    var zhCount = (L.match(/[\u4e00-\u9fa5]/g) || []).length;
+    var enCount = (L.match(/[A-Za-z]/g) || []).length;
+    // 只要这行有中文，就归译文；宁可译文里带英文，也不让英文区混进中文（否则会被朗读成中文）
+    if(zhCount >= 2) zhLines.push(L);
+    else if(enCount >= 6) enTail.push(L);
+    else zhLines.push(L);
+  }
+
+  var enAll = en;
+  if(enTail.length) enAll = (enAll + ' ' + enTail.join(' ')).trim();
+
+  return { en: enAll, zh: zhLines.join('\n') };
+}
+
+function callModel(msgs, onDone, onErr){
+  var base = (cfg.base || DEFAULT_BASE).replace(/\/+$/, '');
+  var url = base + '/chat/completions';
+  var body = JSON.stringify({ model: cfg.model || DEFAULT_MODEL, stream: true, messages: msgs, temperature: 0.7 });
+
+  // 45 秒还没响应就中断，避免一直卡在“思考中”
+  var ctrl = null, timer = null;
+  try{
+    if(window.AbortController){
+      ctrl = new AbortController();
+      timer = setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, 45000);
+    }
+  }catch(e){}
+  function clearTimer(){ if(timer){ clearTimeout(timer); timer = null; } }
+
+  function handleError(resp){
+    clearTimer();
+    resp.text().then(function(t){
+      var msg = resp.status + ' ' + resp.statusText;
+      try{ var j = JSON.parse(t); if(j.error && j.error.message) msg = j.error.message; }catch(e){}
+      onErr(msg);
+    }).catch(function(){ onErr(resp.status + ' ' + resp.statusText); });
+  }
+
+  try{
+    fetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer ' + cfg.key},
+      body: body,
+      signal: ctrl ? ctrl.signal : undefined
+    }).then(function(resp){
+      if(!resp.ok){ handleError(resp); return; }
+      if(!resp.body || !resp.body.getReader){
+        return resp.text().then(function(txt){
+          clearTimer();
+          try{
+            var j = JSON.parse(txt);
+            var c = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+            if(!c && j.error){ onErr(j.error.message || '接口返回错误'); return; }
+            onDone(c || '');
+          }catch(e){ onErr('返回格式无法解析'); }
+        });
+      }
+      var reader = resp.body.getReader();
+      var dec = new TextDecoder();
+      var buf = '', full = '', finished = false;
+      function finishOnce(txt){ if(finished) return; finished = true; clearTimer(); onDone(txt); }
+      function pump(){
+        reader.read().then(function(r){
+          if(r.done){ finishOnce(full); return; }
+          buf += dec.decode(r.value, {stream:true});
+          var lines = buf.split('\n');
+          buf = lines.pop();
+          for(var i=0;i<lines.length;i++){
+            var line = lines[i];
+            if(line.indexOf('data:') !== 0) continue;
+            var data = line.slice(5).replace(/^\s+|\s+$/g, '');
+            if(!data || data === '[DONE]') continue;
+            try{
+              var j = JSON.parse(data);
+              var d = j.choices && j.choices[0] && j.choices[0].delta;
+              if(d && d.content) full += d.content;
+            }catch(e){}
+          }
+          pump();
+        }).catch(function(e){ clearTimer(); onErr(e && e.message ? e.message : '读取中断'); });
+      }
+      pump();
+    }).catch(function(e){
+      clearTimer();
+      var msg = e && e.message ? e.message : String(e);
+      if(e && e.name === 'AbortError'){ msg = '请求超时（45 秒没有响应），请重发或检查网络'; }
+      else if(/Failed to fetch|NetworkError|load failed|Load failed|network error/i.test(msg)){
+        msg = '网络请求失败。检查：①Key 是否填对 ②是否联网 ③换个浏览器再试';
+      }
+      onErr(msg);
+    });
+  }catch(e){
+    clearTimer();
+    onErr('请求异常：' + (e && e.message ? e.message : e));
+  }
+}
+
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+else init();
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('./sw.js').catch(function(){});
+  });
+}
+</script>
+</body>
+</html>
